@@ -7,40 +7,48 @@ const User = require('../models/User');
 
 
 dotenv.config({path: './config/config.env'})
-router.post('/createuser', async (req, resp) => {
-  const { username, email, password, refferal_code } = req.body
+router.post('/register', async (req, res) => {
+  try {
+    const data = req.body;
 
-  if (!username || !email || !password) {
-    return resp.status(400).json({ message: 'Please fill in all fields properly' });
+    let parentUser = null;
+    if (data.parent_user) {
+      parentUser = await User.findOne({ referral_code: data.referral_code });
+      if (!parentUser) {
+        return res.status(400).json({ error: 'Invalid parent referral code' });
+      }
+    }
+
+    let referral_bonus = 0;
+    if (parentUser) {
+      const referral_count = parentUser.child_users.length + 1;
+      if (referral_count === 1) referral_bonus = 100;
+      else if (referral_count === 2) referral_bonus = 50;
+      else if (referral_count >= 3) referral_bonus = 10;
+    }
+
+    if (parentUser) {
+      parentUser.referral_bonus += referral_bonus;
+      await parentUser.save();
+    }
+
+    const newUser = new User({
+      username: data.username,
+      email: data.email,
+      parent_user: data.parent_user || false,
+      password: data.password,
+      referral_code: data.referral_code,
+      referral_bonus: 0, 
+    });
+
+    
+    await newUser.save();
+
+    res.status(200).json({ message: newUser });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Internal Server Error' });
   }
-
-  const hashedPassword = await bcrypt.hash(password, 10);
-
-  const userExists =  await User.findOne({ email });
-
-  if (userExists) {
-    return resp.status(400).json({ message: "User already exists" });
-  }
-
-  let referral_bonus = 0; 
-
-  const date = new Date();
-  const day = date.getDay().toString();
-  
-  if (refferal_code === "Parent" && day !== 'Saturday' && day !== 'Sunday') {
-    referral_bonus = 50;
-  }
-  
-  if (refferal_code === "Parent" && (day === 'Saturday' || day === 'Sunday')) {
-    referral_bonus = 100;
-  }
-
-
-  const user = new User({ username, email, password: hashedPassword, referral_bonus });
-
-  await user.save();
-
-  return resp.status(200).json({ message: user });
 });
 
 
