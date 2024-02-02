@@ -36,6 +36,7 @@ router.post('/register', async (req, res) => {
       username: data.username,
       email: data.email,
       parent_user: data.parent_user || false,
+      child_user: referral_count, 
       password: data.password,
       referral_code: data.referral_code,
       referral_bonus: 0, 
